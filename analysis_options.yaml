@@ -1,0 +1,30 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    prefer_double_quotes: true
+    no_default_cases: true
+    always_declare_return_types: true
+    avoid_dynamic_calls: true
+    avoid_print: true
+    cancel_subscriptions: true
+    close_sinks: true
+    depend_on_referenced_packages: true
+    directives_ordering: true
+    empty_catches: true
+    exhaustive_cases: true
+    no_adjacent_strings_in_list: true
+    no_duplicate_case_values: true
+    prefer_final_fields: true
+    prefer_final_locals: true
+    require_trailing_commas: true
+    type_annotate_public_apis: true
+    unnecessary_lambdas: true
+    unnecessary_null_aware_assignments: true
+    prefer_const_constructors: true
