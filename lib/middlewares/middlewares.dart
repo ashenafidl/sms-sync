@@ -21,8 +21,9 @@ Middleware corsMiddleware() {
 Middleware authMiddleware(String? secret) {
   return (Handler innerHandler) {
     return (Request request) async {
-      // Let /ping and OPTIONS preflight through without a secret
-      if (request.url.path == "ping" || request.method == "OPTIONS") {
+      final protectedPaths = {"messages"};
+      if (!protectedPaths.contains(request.url.path) ||
+          request.method == "OPTIONS") {
         return innerHandler(request);
       }
 

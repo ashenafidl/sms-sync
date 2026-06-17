@@ -1,12 +1,16 @@
 import "dart:io";
 
-import "package:flutter/material.dart" hide Router;
+import "package:flutter/foundation.dart";
+import "package:flutter/services.dart";
+import "package:path_provider/path_provider.dart";
 import "package:permission_handler/permission_handler.dart";
 import "package:shelf/shelf.dart";
 import "package:shelf/shelf_io.dart" as shelf_io;
 import "package:shelf_router/shelf_router.dart";
+import "package:shelf_static/shelf_static.dart";
 import "package:sms_sync/middlewares/middlewares.dart";
 import "package:sms_sync/services/secret_generator.dart";
+import "package:sms_sync/services/sms_service.dart";
 
 const int kServerPort = 8765;
 const String kServiceName = "_smssync._tcp";
@@ -18,6 +22,7 @@ class ServerService extends ChangeNotifier {
   String? _localIp;
   String? _error;
   String? _secret;
+  String? _webRootPath;
 
   bool get isRunning => _isRunning;
   String? get localIp => _localIp;
@@ -29,20 +34,25 @@ class ServerService extends ChangeNotifier {
 
   Handler _buildHandler() {
     final router = Router();
+    final sms = SmsService();
+
+    router.get("/messages", (Request req) async {
+      try {
+        final json = await sms.getMessagesJson();
+        return Response.ok(json, headers: {"Content-Type": "application/json"});
+      } catch (e) {
+        return Response.internalServerError(
+          body: '{"error":"${e.toString()}"}',
+          headers: {"Content-Type": "application/json"},
+        );
+      }
+    });
 
     // /ping - health check endpoint
     router.get(
       "/ping",
       (Request req) => Response.ok(
         '{"status":"ok","service":"sms-sync"}',
-        headers: {"Content-Type": "application/json"},
-      ),
-    );
-
-    router.get(
-      "/messages",
-      (Request req) => Response.ok(
-        '{"messages":[]}',
         headers: {"Content-Type": "application/json"},
       ),
     );
@@ -55,11 +65,37 @@ class ServerService extends ChangeNotifier {
       );
     });
 
+    final staticHandler = createStaticHandler(
+      _webRootPath!,
+      defaultDocument: "index.html",
+      listDirectories: false,
+    );
+
+    final cascade = Cascade().add(router.call).add(staticHandler);
+
     return const Pipeline()
         .addMiddleware(logRequests())
         .addMiddleware(corsMiddleware())
         .addMiddleware(authMiddleware(_secret))
-        .addHandler(router.call);
+        .addHandler(cascade.handler);
+  }
+
+  Future<String> _prepareWebRoot() async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    final webDir = Directory("${docsDir.path}/web");
+    if (!await webDir.exists()) {
+      await webDir.create(recursive: true);
+    }
+
+    final indexFile = File("${webDir.path}/index.html");
+    final htmlBytes = await rootBundle.load("assets/web/index.html");
+    await indexFile.writeAsBytes(htmlBytes.buffer.asUint8List());
+
+    final cssFile = File("${webDir.path}/index.css");
+    final cssBytes = await rootBundle.load("assets/web/index.css");
+    await cssFile.writeAsBytes(cssBytes.buffer.asUint8List());
+
+    return webDir.path;
   }
 
   // ── Start ───────────────────────────────────────────────────────────────────
@@ -81,7 +117,8 @@ class ServerService extends ChangeNotifier {
 
       if (_localIp == null) throw Exception("Could not get local IP address");
 
-      _secret = generateSecret();
+      _secret = kDebugMode ? "00000000" : generateSecret();
+      _webRootPath = await _prepareWebRoot();
 
       _server = await shelf_io.serve(
         _buildHandler(),
