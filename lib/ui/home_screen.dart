@@ -128,20 +128,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       text: "Enter the address shown below",
                     ),
                     const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      width: double.infinity,
-                      child: Text(
-                        running ? _server.address : "Start the server first",
-                        style: const TextStyle(fontFamily: "monospace"),
-                      ),
+                    _MonospaceContainer(
+                      cs: cs,
+                      running: running,
+                      label: running
+                          ? _server.address
+                          : "Start the server first",
+                    ),
+                    const SizedBox(height: 8),
+                    const _Step(
+                      number: "4",
+                      text: "Use the following secret to authenticate",
+                    ),
+                    _MonospaceContainer(
+                      cs: cs,
+                      running: running,
+                      label: running && _server.secret != null
+                          ? _server.secret!
+                          : "Start the server first",
                     ),
                   ],
                 ),
@@ -203,6 +207,32 @@ class _Step extends StatelessWidget {
           Expanded(child: Text(text)),
         ],
       ),
+    );
+  }
+}
+
+class _MonospaceContainer extends StatelessWidget {
+  const _MonospaceContainer({
+    required this.cs,
+    required this.running,
+    required this.label,
+  });
+
+  final ColorScheme cs;
+  final bool running;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      alignment: .center,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      width: double.infinity,
+      child: Text(label, style: const TextStyle(fontFamily: "monospace")),
     );
   }
 }

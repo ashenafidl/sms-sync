@@ -5,6 +5,8 @@ import "package:permission_handler/permission_handler.dart";
 import "package:shelf/shelf.dart";
 import "package:shelf/shelf_io.dart" as shelf_io;
 import "package:shelf_router/shelf_router.dart";
+import "package:sms_sync/middlewares/middlewares.dart";
+import "package:sms_sync/services/secret_generator.dart";
 
 const int kServerPort = 8765;
 const String kServiceName = "_smssync._tcp";
@@ -15,10 +17,12 @@ class ServerService extends ChangeNotifier {
   bool _isRunning = false;
   String? _localIp;
   String? _error;
+  String? _secret;
 
   bool get isRunning => _isRunning;
   String? get localIp => _localIp;
   String? get error => _error;
+  String? get secret => _secret;
   String get address => "http://$_localIp:$kServerPort";
 
   // ── Build the shelf router ──────────────────────────────────────────────────
@@ -35,6 +39,14 @@ class ServerService extends ChangeNotifier {
       ),
     );
 
+    router.get(
+      "/messages",
+      (Request req) => Response.ok(
+        '{"messages":[]}',
+        headers: {"Content-Type": "application/json"},
+      ),
+    );
+
     // 404 fallback
     router.all("/<ignored|.*>", (Request request) {
       return Response.notFound(
@@ -45,29 +57,10 @@ class ServerService extends ChangeNotifier {
 
     return const Pipeline()
         .addMiddleware(logRequests())
-        .addMiddleware(_corsMiddleware())
+        .addMiddleware(corsMiddleware())
+        .addMiddleware(authMiddleware(_secret))
         .addHandler(router.call);
   }
-
-  // ── CORS middleware (permissive for LAN use) ────────────────────────────────
-
-  Middleware _corsMiddleware() {
-    return (Handler innerHandler) {
-      return (Request request) async {
-        if (request.method == "OPTIONS") {
-          return Response.ok("", headers: _corsHeaders());
-        }
-        final response = await innerHandler(request);
-        return response.change(headers: _corsHeaders());
-      };
-    };
-  }
-
-  Map<String, String> _corsHeaders() => {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
 
   // ── Start ───────────────────────────────────────────────────────────────────
 
@@ -76,7 +69,6 @@ class ServerService extends ChangeNotifier {
     _error = null;
 
     try {
-      // 1. Request location permission (required for WiFi info on Android 8+)
       final status = await Permission.locationWhenInUse.request();
       if (!status.isGranted) {
         _error =
@@ -85,12 +77,12 @@ class ServerService extends ChangeNotifier {
         return;
       }
 
-      // 2. Get the local IP
       _localIp = await _getLocalIp();
 
       if (_localIp == null) throw Exception("Could not get local IP address");
 
-      // 3. Start HTTP server bound to all interfaces
+      _secret = generateSecret();
+
       _server = await shelf_io.serve(
         _buildHandler(),
         InternetAddress.anyIPv4,
