@@ -11,6 +11,8 @@ class AppTheme {
       colorScheme: colorScheme,
       brightness: .dark,
 
+      textTheme: const TextTheme(bodyMedium: TextStyle(fontSize: 12)),
+
       filledButtonTheme: FilledButtonThemeData(
         style: ButtonStyle(
           minimumSize: const WidgetStatePropertyAll(Size(double.infinity, 48)),

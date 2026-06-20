@@ -2,6 +2,7 @@ import "dart:io";
 
 import "package:flutter/foundation.dart";
 import "package:flutter/services.dart";
+import "package:network_info_plus/network_info_plus.dart";
 import "package:path_provider/path_provider.dart";
 import "package:permission_handler/permission_handler.dart";
 import "package:shelf/shelf.dart";
@@ -11,11 +12,14 @@ import "package:shelf_static/shelf_static.dart";
 import "package:sms_sync/middlewares/middlewares.dart";
 import "package:sms_sync/services/secret_generator.dart";
 import "package:sms_sync/services/sms_service.dart";
+import "package:sms_sync/services/wifi_whitelist_service.dart";
 
 const int kServerPort = 8765;
 const String kServiceName = "_smssync._tcp";
 
 class ServerService extends ChangeNotifier {
+  final _whitelistService = WifiWhitelistService.instance;
+
   HttpServer? _server;
 
   bool _isRunning = false;
@@ -23,6 +27,19 @@ class ServerService extends ChangeNotifier {
   String? _error;
   String? _secret;
   String? _webRootPath;
+  String? _currentSsid;
+
+  ServerService() {
+    _whitelistService.addListener(_onWhitelistChanged);
+  }
+
+  void _onWhitelistChanged() {
+    if (!_isRunning || _currentSsid == null) return;
+    if (!_whitelistService.isNetworkAllowed(_currentSsid!)) {
+      _error = "network_not_allowed: $_currentSsid";
+      stop();
+    }
+  }
 
   bool get isRunning => _isRunning;
   String? get localIp => _localIp;
@@ -113,6 +130,23 @@ class ServerService extends ChangeNotifier {
         return;
       }
 
+      await _whitelistService.initialize();
+
+      _currentSsid = (await NetworkInfo().getWifiName())?.replaceAll('"', "");
+
+      if (_currentSsid == null) {
+        _error = "not_on_wifi";
+        notifyListeners();
+        return;
+      }
+
+      final allowed = _whitelistService.isNetworkAllowed(_currentSsid!);
+      if (!allowed) {
+        _error = "network_not_allowed: $_currentSsid";
+        notifyListeners();
+        return;
+      }
+
       _localIp = await _getLocalIp();
 
       if (_localIp == null) throw Exception("Could not get local IP address");
@@ -183,6 +217,7 @@ class ServerService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _whitelistService.removeListener(_onWhitelistChanged);
     stop();
     super.dispose();
   }
