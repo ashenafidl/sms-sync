@@ -21,7 +21,7 @@ class SmsService {
     final list = messages
         .map(
           (m) => {
-            "id": m.id,
+            "smsId": m.id,
             "address": m.address ?? m.serviceCenterAddress ?? "Unknown",
             "body": m.body ?? "",
             "date": m.date,

@@ -1,5 +1,6 @@
 import "package:flutter/material.dart";
 import "package:network_info_plus/network_info_plus.dart";
+import "package:sms_sync/services/sync_service.dart";
 import "package:sms_sync/services/wifi_whitelist_service.dart";
 
 class SettingsScreen extends StatefulWidget {
@@ -10,82 +11,161 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final _syncService = SyncService.instance;
   final _whitelistService = WifiWhitelistService.instance;
-  String? _currentSsid;
+  late TextEditingController _serviceTypeController;
+  late TextEditingController _pathController;
+  late TextEditingController _intervalController;
 
   @override
   void initState() {
     super.initState();
+    _serviceTypeController = TextEditingController(
+      text: _syncService.serviceType,
+    );
+    _pathController = TextEditingController(text: _syncService.syncPath);
+    _intervalController = TextEditingController(
+      text: _syncService.syncIntervalMinutes.toString(),
+    );
     _whitelistService.initialize();
-    _loadCurrentSsid();
   }
 
-  Future<void> _loadCurrentSsid() async {
-    final ssid = (await NetworkInfo().getWifiName())?.replaceAll('"', "");
-    if (mounted) setState(() => _currentSsid = ssid);
+  @override
+  void dispose() {
+    _serviceTypeController.dispose();
+    _pathController.dispose();
+    _intervalController.dispose();
+    super.dispose();
   }
 
-  void showWhitelistDialog() {
-    if (_currentSsid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Not connected to a Wi-Fi network")),
-      );
-      return;
-    }
+  void _saveSettings() {
+    final newServiceType = _serviceTypeController.text.trim();
+    final newPath = _pathController.text.trim();
+    final newInterval = int.tryParse(_intervalController.text) ?? 60;
 
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _WhitelistDialog(
-        service: _whitelistService,
-        currentSsid: _currentSsid!,
-      ),
+    _syncService.updateSettings(
+      serviceType: newServiceType.isNotEmpty ? newServiceType : null,
+      path: newPath.isNotEmpty ? newPath : null,
+      interval: newInterval,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text("Settings")),
       body: ListenableBuilder(
-        listenable: _whitelistService,
+        listenable: _syncService,
         builder: (context, _) {
-          final enabled = _whitelistService.enabled;
-          return Column(
+          return ListView(
+            padding: const EdgeInsets.all(16),
             children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "mDNS Service Type",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _serviceTypeController,
+                        decoration: const InputDecoration(
+                          hintText: "e.g. _expense-sync._tcp",
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => _saveSettings(),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Sync Path",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _pathController,
+                        decoration: const InputDecoration(
+                          hintText: "e.g. /api/sms/sync",
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => _saveSettings(),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Sync Interval (minutes)",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _intervalController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          hintText: "E.g., 60 (1 hour)",
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => _saveSettings(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               ListTile(
-                onTap: () => _whitelistService.setEnabled(!enabled),
                 title: const Text("Run on specific wifi networks"),
-                subtitle: Text(
-                  "Only run on selected wifi networks.",
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium!.copyWith(color: cs.outline),
+                subtitle: const Text(
+                  "Only run sync on selected wifi networks.",
                 ),
                 trailing: Checkbox(
-                  value: enabled,
+                  value: _whitelistService.enabled,
                   onChanged: (value) =>
                       _whitelistService.setEnabled(value ?? false),
                 ),
+                onTap: () =>
+                    _whitelistService.setEnabled(!_whitelistService.enabled),
               ),
-              ListTile(
-                onTap: showWhitelistDialog,
-                title: const Text("Select WiFi networks"),
-                subtitle: Text(
-                  "Choose which Wi-Fi networks are allowed to run the sync server.",
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium!.copyWith(color: cs.outline),
+              if (_whitelistService.enabled)
+                ListTile(
+                  title: const Text("Select WiFi networks"),
+                  subtitle: const Text(
+                    "Choose which Wi-Fi networks are allowed to run sync.",
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _showWhitelistDialog,
                 ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                enabled: enabled,
-              ),
             ],
           );
         },
       ),
     );
+  }
+
+  Future<void> _showWhitelistDialog() async {
+    final ssid = await _getCurrentSsid();
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _WhitelistDialog(
+        service: _whitelistService,
+        currentSsid: ssid ?? "Unknown",
+      ),
+    );
+  }
+
+  Future<String?> _getCurrentSsid() async {
+    final networkInfo = NetworkInfo();
+    return (await networkInfo.getWifiName())?.replaceAll('"', "");
   }
 }
 
