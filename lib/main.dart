@@ -1,6 +1,6 @@
 import "package:flutter/material.dart";
 import "package:sms_sync/theme/app_theme.dart";
-import "package:sms_sync/ui/home_screen.dart";
+import "package:sms_sync/ui/screens/home_screen.dart";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

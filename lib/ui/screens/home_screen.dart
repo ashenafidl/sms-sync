@@ -1,6 +1,6 @@
 import "package:flutter/material.dart";
 import "package:sms_sync/services/sync_service.dart";
-import "package:sms_sync/ui/settings_screen.dart";
+import "package:sms_sync/ui/screens/settings_screen.dart";
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -102,24 +102,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // ── Error banner ──────────────────────────────────────────────
                 if (_sync.error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Card(
-                      color: cs.errorContainer,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Icon(Icons.error_outline, color: cs.error),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _sync.error!,
-                                style: TextStyle(color: cs.onErrorContainer),
-                              ),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    color: cs.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: cs.error),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _sync.error!,
+                              style: TextStyle(color: cs.onErrorContainer),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -178,32 +176,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 16),
 
-                // ── Start / Stop button ───────────────────────────────────────
-                FilledButton.icon(
-                  onPressed: _toggle,
-                  icon: Icon(
-                    _sync.isRunning
-                        ? Icons.stop_circle_outlined
-                        : Icons.play_circle_outlined,
-                  ),
-                  label: Text(_sync.isRunning ? "Stop Sync" : "Start Sync"),
-                  style: _sync.isRunning
-                      ? FilledButton.styleFrom(
-                          backgroundColor: cs.error,
-                          foregroundColor: cs.onError,
-                        )
-                      : null,
-                ),
-                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    // ── Manual sync button ───────────────────────────────────────
+                    Expanded(
+                      flex: 1,
+                      child: FilledButton(
+                        onPressed: _syncNow,
+                        child: const Icon(Icons.sync, size: 24),
+                      ),
+                    ),
 
-                // ── Manual sync button ───────────────────────────────────────
-                OutlinedButton.icon(
-                  onPressed: _syncNow,
-                  icon: Icon(Icons.sync, color: cs.primary),
-                  label: Text("Sync Now", style: TextStyle(color: cs.primary)),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: cs.primary),
-                  ),
+                    const SizedBox(width: 12),
+
+                    // ── Start / Stop button ───────────────────────────────────────
+                    Expanded(
+                      flex: 4,
+                      child: FilledButton.icon(
+                        onPressed: _toggle,
+                        icon: Icon(
+                          _sync.isRunning
+                              ? Icons.stop_circle_outlined
+                              : Icons.play_circle_outlined,
+                        ),
+                        label: Text(
+                          _sync.isRunning ? "Stop Sync" : "Start Sync",
+                        ),
+                        style: _sync.isRunning
+                            ? FilledButton.styleFrom(
+                                backgroundColor: cs.error,
+                                foregroundColor: cs.onError,
+                              )
+                            : null,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
