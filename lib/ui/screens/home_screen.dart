@@ -36,7 +36,53 @@ class _HomeScreenState extends State<HomeScreen> {
     await _sync.syncNow();
   }
 
-  void syncNow() => _syncNow();
+  String _formatTimestamp(String? iso) {
+    if (iso == null) return "Never";
+    try {
+      final dt = DateTime.parse(iso);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 1) return "Just now";
+      if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+      if (diff.inHours < 24) return "${diff.inHours}h ago";
+      return "${diff.inDays}d ago";
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  Color _statusColor(String? result, ColorScheme cs) {
+    switch (result) {
+      case "success":
+        return Colors.green;
+      case "no_server":
+      case "skipped":
+        return cs.onSurfaceVariant;
+      case null:
+        return cs.onSurfaceVariant;
+      default:
+        return cs.error;
+    }
+  }
+
+  String _statusLabel(String? result) {
+    switch (result) {
+      case "success":
+        return "Synced";
+      case "no_server":
+        return "No server found";
+      case "skipped":
+        return "Skipped";
+      case "permission_denied":
+        return "Permission denied";
+      case "failed":
+        return "Failed";
+      case "error":
+        return "Error";
+      default:
+        return "—";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +140,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                       ),
+                      if (_sync.isRunning) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          "Last sync: ${_formatTimestamp(_sync.lastSyncTimestamp)}",
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: _statusColor(_sync.lastSyncResult, cs),
+                              ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -122,6 +178,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
+                // ── Background sync error from last run ───────────────────────
+                if (_sync.isRunning &&
+                    _sync.lastSyncError != null &&
+                    _sync.lastSyncResult != "success")
+                  Card(
+                    margin: EdgeInsets.zero,
+                    color: cs.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.cloud_off_rounded, color: cs.error),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _sync.lastSyncError!,
+                              style: TextStyle(color: cs.onErrorContainer),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
                 const SizedBox(height: 16),
 
                 // ── Sync instructions ────────────────────────────────────────
@@ -133,42 +213,36 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Discovered Servers:",
+                          "Background Sync:",
                           style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 12),
-                        if (_sync.hasEndpoints)
-                          ..._sync.discoveredEndpoints.map(
-                            (ep) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    ep.stale
-                                        ? Icons.cloud_off_rounded
-                                        : Icons.cloud_done_rounded,
-                                    size: 18,
-                                    color: ep.stale ? cs.error : cs.primary,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      "${ep.ipAddress}:${ep.port}",
-                                      style: const TextStyle(
-                                        fontFamily: "monospace",
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              size: 8,
+                              color: _statusColor(_sync.lastSyncResult, cs),
                             ),
-                          )
-                        else
-                          const Text(
-                            "No servers discovered yet. "
-                            "Start the sync to begin mDNS discovery.",
+                            const SizedBox(width: 8),
+                            Text(
+                              "Status: ${_statusLabel(_sync.lastSyncResult)}",
+                            ),
+                          ],
+                        ),
+                        if (_sync.isRunning) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.schedule, size: 14),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Interval: ${_sync.syncIntervalMinutes} min",
+                              ),
+                            ],
                           ),
+                        ],
                       ],
                     ),
                   ),
