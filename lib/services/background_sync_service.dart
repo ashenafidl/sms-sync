@@ -47,6 +47,9 @@ Future<void> _runSync() async {
     final whitelistEnabled = prefs.getBool("wifi_whitelist_enabled") ?? false;
     final allowedSsids =
         prefs.getStringList("wifi_whitelist_allowed") ?? <String>[];
+    final smsWhitelistEnabled = prefs.getBool("sms_whitelist_enabled") ?? false;
+    final allowedSenders =
+        prefs.getStringList("sms_whitelist_allowed") ?? <String>[];
 
     if (whitelistEnabled && allowedSsids.isEmpty) {
       debugPrint("No whitelisted Wi-Fi networks, skipping sync");
@@ -80,8 +83,18 @@ Future<void> _runSync() async {
 
     final telephony = Telephony.instance;
     final messages = await telephony.getInboxSms();
+
+    // Filter messages by SMS whitelist if enabled
+    List<SmsMessage> filteredMessages = messages;
+    if (smsWhitelistEnabled && allowedSenders.isNotEmpty) {
+      filteredMessages = messages.where((m) {
+        final address = m.address ?? m.serviceCenterAddress;
+        return address != null && allowedSenders.contains(address);
+      }).toList();
+    }
+
     final jsonPayload = jsonEncode({
-      "messages": messages
+      "messages": filteredMessages
           .map(
             (m) => {
               "smsId": m.id,

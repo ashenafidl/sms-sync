@@ -2,10 +2,12 @@ import "package:flutter/material.dart";
 import "package:network_info_plus/network_info_plus.dart";
 import "package:permission_handler/permission_handler.dart";
 import "package:sms_sync/services/background_sync_service.dart";
+import "package:sms_sync/services/sms_whitelist_service.dart";
 import "package:sms_sync/services/sync_service.dart";
 import "package:sms_sync/services/wifi_whitelist_service.dart";
 import "package:sms_sync/ui/widgets/setting_group.dart";
 import "package:sms_sync/ui/widgets/setting_item.dart";
+import "package:sms_sync/ui/widgets/sms_whitelist_dialog.dart";
 import "package:sms_sync/ui/widgets/string_setting_dialog.dart";
 import "package:sms_sync/ui/widgets/wifi_whitelist_dialog.dart";
 
@@ -21,6 +23,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _syncService = SyncService.instance;
   final _whitelistService = WifiWhitelistService.instance;
+  final _smsWhitelistService = SmsWhitelistService.instance;
 
   bool _batteryOptimizationGranted = false;
 
@@ -28,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _whitelistService.initialize();
+    _smsWhitelistService.initialize();
     _checkBatteryOptimization();
   }
 
@@ -99,6 +103,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _showSmsWhitelistDialog() async {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) =>
+          SmsWhitelistDialog(service: _smsWhitelistService),
+    );
+  }
+
   Future<String?> _getCurrentSsid() async {
     final networkInfo = NetworkInfo();
     return (await networkInfo.getWifiName())?.replaceAll('"', "");
@@ -139,7 +152,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Settings")),
       body: ListenableBuilder(
-        listenable: Listenable.merge([_syncService, _whitelistService]),
+        listenable: Listenable.merge([
+          _syncService,
+          _whitelistService,
+          _smsWhitelistService,
+        ]),
         builder: (context, _) {
           return ListView(
             padding: const EdgeInsets.all(18),
@@ -178,6 +195,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       "Sync Interval (min ${BackgroundSyncService.minIntervalMinutes})",
                       _syncService.syncIntervalMinutes.toString(),
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SettingGroup(
+                title: "SMS",
+                children: [
+                  SettingItem(
+                    icon: Icons.sms,
+                    title: "Use Whitelist",
+                    subtitle: "Only sync whitelisted sender addresses.",
+                    trailing: Checkbox(
+                      value: _smsWhitelistService.enabled,
+                      onChanged: (value) =>
+                          _smsWhitelistService.setEnabled(value ?? false),
+                    ),
+                    onTap: () => _smsWhitelistService.setEnabled(
+                      !_smsWhitelistService.enabled,
+                    ),
+                  ),
+                  SettingItem(
+                    icon: Icons.wifi,
+                    title: "Select sender addresses",
+                    subtitle: "Choose sender addresses allowed to sync.",
+                    onTap: _showSmsWhitelistDialog,
+                    enabled: _smsWhitelistService.enabled,
                   ),
                 ],
               ),
