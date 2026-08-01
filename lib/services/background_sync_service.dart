@@ -112,8 +112,14 @@ Future<void> _runSync() async {
     for (final ep in endpoints) {
       try {
         final path = syncPath.startsWith("/") ? syncPath : "/$syncPath";
+        final uri = Uri(
+          scheme: "http",
+          host: ep.ipAddress,
+          port: ep.port,
+          path: path,
+        );
         final response = await post(
-          Uri.parse("http://${ep.ipAddress}:${ep.port}$path"),
+          uri,
           headers: {"Content-Type": "application/json"},
           body: jsonPayload,
         );
@@ -225,6 +231,7 @@ Future<void> _discoverEndpoints(
                 ResourceRecordQuery.addressIPv4(hostname),
               )
               .listen((a) {
+                if (a.address.isLinkLocal) return;
                 final ip = a.address.address;
                 out.add(
                   _ResolvedEndpoint(
@@ -244,6 +251,7 @@ Future<void> _discoverEndpoints(
                 ResourceRecordQuery.addressIPv6(hostname),
               )
               .listen((aaaa) {
+                if (aaaa.address.isLinkLocal) return;
                 final ip = aaaa.address.address;
                 if (!out.any(
                   (e) => e.hostname == hostname && e.ipAddress == ip,

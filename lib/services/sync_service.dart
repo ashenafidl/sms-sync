@@ -35,8 +35,8 @@ class SyncService extends ChangeNotifier {
   String? _lastSyncResult;
   String? _lastSyncTimestamp;
   String? _lastSyncError;
-  String? _lastSyncStatusRaw;
   Timer? _statusPollTimer;
+  Timer? _foregroundSyncTimer;
 
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -49,9 +49,8 @@ class SyncService extends ChangeNotifier {
 
   void _readLastSyncStatus(SharedPreferences prefs) {
     final raw = prefs.getString("last_sync_status");
-    if (raw == null || raw == _lastSyncStatusRaw) return;
+    if (raw == null) return;
 
-    _lastSyncStatusRaw = raw;
     try {
       final map = jsonDecode(raw) as Map<String, dynamic>;
       _lastSyncResult = map["result"] as String?;
@@ -68,17 +67,31 @@ class SyncService extends ChangeNotifier {
     _statusPollTimer?.cancel();
     _statusPollTimer = Timer.periodic(kForegroundPollInterval, (_) async {
       final prefs = await SharedPreferences.getInstance();
-      final before = _lastSyncStatusRaw;
       _readLastSyncStatus(prefs);
-      if (_lastSyncStatusRaw != before) {
-        notifyListeners();
-      }
+      notifyListeners();
     });
   }
 
   void _stopStatusPolling() {
     _statusPollTimer?.cancel();
     _statusPollTimer = null;
+  }
+
+  void _startForegroundSyncTimer() {
+    _foregroundSyncTimer?.cancel();
+    _foregroundSyncTimer = Timer.periodic(
+      Duration(minutes: _syncIntervalMinutes),
+      (_) async {
+        if (_isRunning) {
+          await syncNow();
+        }
+      },
+    );
+  }
+
+  void _stopForegroundSyncTimer() {
+    _foregroundSyncTimer?.cancel();
+    _foregroundSyncTimer = null;
   }
 
   Future<void> updateSettings({
@@ -113,6 +126,7 @@ class SyncService extends ChangeNotifier {
       await _bgService.registerPeriodicSync(
         intervalMinutes: _syncIntervalMinutes,
       );
+      _startForegroundSyncTimer();
     }
   }
 
@@ -158,6 +172,7 @@ class SyncService extends ChangeNotifier {
       _error = null;
       notifyListeners();
       _startStatusPolling();
+      _startForegroundSyncTimer();
     } catch (e) {
       _error = e.toString();
       await stop();
@@ -167,6 +182,7 @@ class SyncService extends ChangeNotifier {
 
   Future<void> stop() async {
     _stopStatusPolling();
+    _stopForegroundSyncTimer();
     await _bgService.cancelSync();
     await _notificationService.cancelSyncNotification();
     _isRunning = false;
