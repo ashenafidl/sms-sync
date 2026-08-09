@@ -1,5 +1,5 @@
 name: sms_sync
-description: "A new Flutter project."
+description: "Syncs SMS messages to a mDNS server"
 publish_to: "none"
 version: 0.1.0+1
 
