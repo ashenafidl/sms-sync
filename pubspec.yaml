@@ -13,7 +13,6 @@ dependencies:
   http: ^1.2.1
   multicast_dns: ^0.3.3+1
   network_info_plus: ^8.1.0
-  path_provider: ^2.1.6
   permission_handler: ^12.0.3
   shared_preferences: ^2.5.5
   telephony:
