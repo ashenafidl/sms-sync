@@ -105,7 +105,6 @@ Future<void> _runSync() async {
       columns: [
         SmsColumn.ID,
         SmsColumn.ADDRESS,
-        SmsColumn.SERVICE_CENTER_ADDRESS,
         SmsColumn.BODY,
         SmsColumn.DATE,
         SmsColumn.DATE_SENT,
@@ -122,7 +121,6 @@ Future<void> _runSync() async {
             (m) => {
               "id": m.id,
               "address": m.address,
-              "serviceCenterAddress": m.serviceCenterAddress,
               "body": m.body,
               "date": m.date,
               "dateSent": m.dateSent,

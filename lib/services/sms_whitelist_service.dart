@@ -61,7 +61,7 @@ class SmsWhitelistService extends ChangeNotifier {
 
       final senders = <String>{};
       for (final m in messages) {
-        final address = m.address ?? m.serviceCenterAddress;
+        final address = m.address;
         if (address != null && address.isNotEmpty) {
           senders.add(address);
         }
