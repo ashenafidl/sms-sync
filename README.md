@@ -68,7 +68,6 @@ The app requests location permission to read the current Wi-Fi SSID. It also req
 - `http` — HTTP client for POST sync requests
 - `multicast_dns` — local service discovery
 - `network_info_plus` — current Wi-Fi SSID lookup
-- `path_provider` — optional file system access support
 - `permission_handler` — runtime permission requests
 - `shared_preferences` — settings persistence
 - `telephony` — SMS inbox access

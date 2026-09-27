@@ -37,6 +37,25 @@ void callbackDispatcher() {
   });
 }
 
+SmsFilter? _buildWhitelistFilter({
+  required bool smsWhitelistEnabled,
+  required List<String> allowedSenders,
+}) {
+  if (!smsWhitelistEnabled || allowedSenders.isEmpty) {
+    return null;
+  }
+
+  // Start with the first sender
+  var filter = SmsFilter.where(SmsColumn.ADDRESS).equals(allowedSenders.first);
+
+  // OR with the rest
+  for (var sender in allowedSenders.skip(1)) {
+    filter = filter.or(SmsColumn.ADDRESS).equals(sender);
+  }
+
+  return filter;
+}
+
 Future<void> _runSync() async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -82,25 +101,31 @@ Future<void> _runSync() async {
     }
 
     final telephony = Telephony.instance;
-    final messages = await telephony.getInboxSms();
-
-    // Filter messages by SMS whitelist if enabled
-    List<SmsMessage> filteredMessages = messages;
-    if (smsWhitelistEnabled && allowedSenders.isNotEmpty) {
-      filteredMessages = messages.where((m) {
-        final address = m.address ?? m.serviceCenterAddress;
-        return address != null && allowedSenders.contains(address);
-      }).toList();
-    }
+    final messages = await telephony.getInboxSms(
+      columns: [
+        SmsColumn.ID,
+        SmsColumn.ADDRESS,
+        SmsColumn.SERVICE_CENTER_ADDRESS,
+        SmsColumn.BODY,
+        SmsColumn.DATE,
+        SmsColumn.DATE_SENT,
+      ],
+      filter: _buildWhitelistFilter(
+        smsWhitelistEnabled: smsWhitelistEnabled,
+        allowedSenders: allowedSenders,
+      ),
+    );
 
     final jsonPayload = jsonEncode({
-      "messages": filteredMessages
+      "messages": messages
           .map(
             (m) => {
-              "smsId": m.id,
-              "address": m.address ?? m.serviceCenterAddress ?? "Unknown",
-              "body": m.body ?? "",
+              "id": m.id,
+              "address": m.address,
+              "serviceCenterAddress": m.serviceCenterAddress,
+              "body": m.body,
               "date": m.date,
+              "dateSent": m.dateSent,
             },
           )
           .toList(),
